@@ -22,7 +22,7 @@ namespace ScrollableFieldEditors
 		[AutoRegisterConfigKey]
 		private static ModConfigurationKey<bool> MOD_ENABLED = new ModConfigurationKey<bool>("MOD_ENABLED", "Mod Enabled:", () => true);
 		[AutoRegisterConfigKey]
-		public static ModConfigurationKey<float> SCROLL_SPEED = new ModConfigurationKey<float>("Scroll Speed", "How fast you scroll values.", () => 1f);
+		public static ModConfigurationKey<float> SCROLL_SPEED = new ModConfigurationKey<float>("Scroll Speed", "Speed of scrolling values.", () => 1f);
 
 		private static MethodInfo _addMethod = AccessTools.Method(typeof(ScrollableFieldEditors), nameof(Add));
 		private static MethodInfo _primitiveToStringMethod = AccessTools.Method(typeof(PrimitiveMemberEditor), "PrimitiveToString");
@@ -197,9 +197,9 @@ namespace ScrollableFieldEditors
 								return;
 							}
 
-							Msg("Member type: " + memberType.Name);
+							Debug("Member type: " + memberType.Name);
 
-							Msg("scroll Y axis: " + yAxis.ToString());
+							Debug("scroll Y axis: " + yAxis.ToString());
 
 							object currentVal;
 							if (_currentMemberEditor is PrimitiveMemberEditor)
@@ -217,10 +217,10 @@ namespace ScrollableFieldEditors
 								return;
 							}
 
-							Msg("current val: " + currentVal.ToString());
+							Debug("current val: " + currentVal.ToString());
 
 							var amountToAdd = yAxis * Config.GetValue(SCROLL_SPEED);
-							Msg("amount to add: " + amountToAdd.ToString());
+							Debug("amount to add: " + amountToAdd.ToString());
 
 							object newVal = null;
 							if (_currentMemberEditor is PrimitiveMemberEditor)
@@ -281,7 +281,7 @@ namespace ScrollableFieldEditors
 
 							if (newVal != null)
 							{
-								Msg("new val: " + newVal.ToString());
+								Debug("new val: " + newVal.ToString());
 								UpdateText(text, memberType, newVal);
 							}
 						}
