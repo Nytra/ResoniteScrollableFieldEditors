@@ -29,6 +29,13 @@ namespace ScrollableFieldEditors
 		private static MethodInfo _getEulerValueMethod = AccessTools.Method(typeof(QuaternionMemberEditor), "GetEulerValue");
 
 		private static MemberEditor _currentMemberEditor;
+
+		private enum QuaternionField
+		{
+			X,
+			Y,
+			Z
+		}
 		
 		public override void OnEngineInit()
 		{
@@ -37,11 +44,11 @@ namespace ScrollableFieldEditors
 			harmony.PatchAll();
 		}
 
-		private static T Add<T>(T val, float addVal)
+		private static T Add<T>(T val, T addVal)
 		{
 			if (Coder<T>.SupportsAddSub)
 			{
-				return Coder<T>.Add(val, (T)Convert.ChangeType(addVal, typeof(T)));
+				return Coder<T>.Add(val, addVal);
 			}
 			return val;
 		}
@@ -86,6 +93,46 @@ namespace ScrollableFieldEditors
 			}
 		}
 
+		private static QuaternionField? GetEditingField()
+		{
+			if (_currentMemberEditor.GetSyncMember("_xEditor") is RelayRef<TextEditor> xEditorRef)
+			{
+				if (xEditorRef.Target != null && xEditorRef.Target.IsEditing)
+				{
+					return QuaternionField.X;
+				}
+			}
+			if (_currentMemberEditor.GetSyncMember("_yEditor") is RelayRef<TextEditor> yEditorRef)
+			{
+				if (yEditorRef.Target != null && yEditorRef.Target.IsEditing)
+				{
+					return QuaternionField.Y;
+				}
+			}
+			if (_currentMemberEditor.GetSyncMember("_zEditor") is RelayRef<TextEditor> zEditorRef)
+			{
+				if (zEditorRef.Target != null && zEditorRef.Target.IsEditing)
+				{
+					return QuaternionField.Z;
+				}
+			}
+			return null;
+		}
+
+		private static double3 GetEulerValue()
+		{
+			double3? eulerValue = null;
+
+			if (_currentMemberEditor.GetSyncMember("_editingValue") is Sync<double3?> editingValueField)
+			{
+				eulerValue = editingValueField.Value;
+			}
+
+			eulerValue ??= (double3)_getEulerValueMethod.Invoke(_currentMemberEditor, []);
+
+			return eulerValue.Value;
+		}
+
 		private static void UpdateText(Text text, Type memberType, object newVal)
 		{
 			string newString = null;
@@ -95,42 +142,25 @@ namespace ScrollableFieldEditors
 			}
 			else if (_currentMemberEditor is QuaternionMemberEditor)
 			{
-				double3? eulerValue = null;
+				double3 eulerValue = GetEulerValue();
 
-				if (_currentMemberEditor.GetSyncMember("_editingValue") is Sync<double3?> editingValueField)
+				double? val = null;
+				switch (GetEditingField())
 				{
-					eulerValue = editingValueField.Value;
-				}
-
-				eulerValue ??= (double3)_getEulerValueMethod.Invoke(_currentMemberEditor, []);
-
-				TextEditor xEditor = null, yEditor = null, zEditor = null;
-
-				if (_currentMemberEditor.GetSyncMember("_xEditor") is RelayRef<TextEditor> xEditorRef)
-				{
-					xEditor = xEditorRef.Target;
-				}
-				if (_currentMemberEditor.GetSyncMember("_yEditor") is RelayRef<TextEditor> yEditorRef)
-				{
-					yEditor = yEditorRef.Target;
-				}
-				if (_currentMemberEditor.GetSyncMember("_zEditor") is RelayRef<TextEditor> zEditorRef)
-				{
-					zEditor = zEditorRef.Target;
+					case QuaternionField.X:
+						val = eulerValue.x;
+						break;
+					case QuaternionField.Y:
+						val = eulerValue.y;
+						break;
+					case QuaternionField.Z:
+						val = eulerValue.z;
+						break;
+					default:
+						break;
 				}
 
-				if (xEditor.IsEditing)
-				{
-					newString = eulerValue.Value.x.ToString("0.###", CultureInfo.InvariantCulture);
-				}
-				else if (yEditor.IsEditing)
-				{
-					newString = eulerValue.Value.y.ToString("0.###", CultureInfo.InvariantCulture);
-				}
-				else if (zEditor.IsEditing)
-				{
-					newString = eulerValue.Value.z.ToString("0.###", CultureInfo.InvariantCulture);
-				}
+				newString = val?.ToString("0.###", CultureInfo.InvariantCulture);
 			}
 			if (newString != null)
 			{
@@ -156,12 +186,10 @@ namespace ScrollableFieldEditors
 							if (__instance.InputInterface.ScreenActive)
 							{
 								yAxis = __instance.InputInterface.Mouse.NormalizedScrollWheelDelta.Value.y;
-								//Msg(__instance.InputInterface.Mouse.NormalizedScrollWheelDelta.Value.ToString());
 							}
 							else
 							{
 								yAxis = __instance.Inputs.Axis.Value.Value.y;
-								//Msg(__instance.Inputs.Axis.Value.Value.ToString());
 							}
 							
 							if (MathX.Approximately(yAxis, 0))
@@ -180,7 +208,8 @@ namespace ScrollableFieldEditors
 							}
 							else if (_currentMemberEditor is QuaternionMemberEditor)
 							{
-								currentVal = _getEulerValueMethod.Invoke(_currentMemberEditor, []);
+								var eulerValue = GetEulerValue();
+								currentVal = doubleQ.Euler(eulerValue.x, eulerValue.y, eulerValue.z);
 							}
 							else
 							{
@@ -193,26 +222,68 @@ namespace ScrollableFieldEditors
 							var amountToAdd = yAxis * Config.GetValue(SCROLL_SPEED);
 							Msg("amount to add: " + amountToAdd.ToString());
 
-							object newVal;
+							object newVal = null;
 							if (_currentMemberEditor is PrimitiveMemberEditor)
 							{
-								newVal = _addMethod.MakeGenericMethod(memberType).Invoke(null, [currentVal, amountToAdd]);
+								newVal = _addMethod.MakeGenericMethod(memberType).Invoke(null, [currentVal, Convert.ChangeType(amountToAdd, memberType)]);
 								_currentMemberEditor.SetMemberValue(newVal);
 							}
 							else if (_currentMemberEditor is QuaternionMemberEditor)
 							{
+								var eulerValue = GetEulerValue();
+								double x = eulerValue.x;
+								double y = eulerValue.y;
+								double z = eulerValue.z;
 
+								switch (GetEditingField())
+								{
+									case QuaternionField.X:
+										x += amountToAdd;
+										break;
+									case QuaternionField.Y:
+										y += amountToAdd;
+										break;
+									case QuaternionField.Z:
+										z += amountToAdd;
+										break;
+									default:
+										break;
+								}
+
+								var doubleQuat = doubleQ.Euler(x, y, z);
+
+								if (!doubleQuat.IsNaN)
+								{
+									if (memberType == typeof(floatQ))
+									{
+										newVal = (floatQ)doubleQuat;
+									}
+									else if (memberType == typeof(doubleQ))
+									{
+										newVal = doubleQuat;
+									}
+
+									_currentMemberEditor.SetMemberValue(newVal);
+
+									if (_currentMemberEditor.GetSyncMember("_editingValue") is Sync<double3?> editingValueField)
+									{
+										if (editingValueField.Value.HasValue)
+										{
+											editingValueField.Value = new double3(x, y, z);
+										}
+									}
+								}
 							}
 							else
 							{
 								return;
 							}
 
-							Msg("new val: " + newVal.ToString());
-
-
-
-							UpdateText(text, memberType, newVal);
+							if (newVal != null)
+							{
+								Msg("new val: " + newVal.ToString());
+								UpdateText(text, memberType, newVal);
+							}
 						}
 					}
 				}
