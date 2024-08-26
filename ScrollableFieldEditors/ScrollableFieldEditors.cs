@@ -22,7 +22,7 @@ namespace ScrollableFieldEditors
 		[AutoRegisterConfigKey]
 		private static ModConfigurationKey<bool> MOD_ENABLED = new ModConfigurationKey<bool>("MOD_ENABLED", "Mod Enabled:", () => true);
 		[AutoRegisterConfigKey]
-		public static ModConfigurationKey<float> SCROLL_SPEED = new ModConfigurationKey<float>("Scroll Speed", "Speed of scrolling values.", () => 1f);
+		private static ModConfigurationKey<float> SCROLL_SPEED = new ModConfigurationKey<float>("Scroll Speed", "Speed of scrolling values.", () => 1f);
 
 		private static MethodInfo _addMethod = AccessTools.Method(typeof(ScrollableFieldEditors), nameof(Add));
 		private static MethodInfo _primitiveToStringMethod = AccessTools.Method(typeof(PrimitiveMemberEditor), "PrimitiveToString");
@@ -220,6 +220,19 @@ namespace ScrollableFieldEditors
 							Debug("current val: " + currentVal.ToString());
 
 							var amountToAdd = yAxis * Config.GetValue(SCROLL_SPEED);
+
+							if (memberType.IsInteger())
+							{
+								if (amountToAdd > 0)
+								{
+									amountToAdd = MathX.Ceil(amountToAdd);
+								}
+								else if (amountToAdd < 0)
+								{
+									amountToAdd = MathX.Floor(amountToAdd);
+								}
+							}
+
 							Debug("amount to add: " + amountToAdd.ToString());
 
 							object newVal = null;
