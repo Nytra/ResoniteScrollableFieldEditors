@@ -6,6 +6,8 @@ using Elements.Core;
 using System;
 using FrooxEngine.UIX;
 using System.Globalization;
+using System.Collections.Generic;
+using static Elements.Core.Number;
 
 namespace ScrollableFieldEditors
 {
@@ -25,14 +27,19 @@ namespace ScrollableFieldEditors
 		[AutoRegisterConfigKey]
 		private static ModConfigurationKey<float> SCROLL_SPEED_DESKTOP = new ModConfigurationKey<float>("Desktop Scroll Speed", "Speed of scrolling values in desktop.", () => 1f);
 		[AutoRegisterConfigKey]
-		private static ModConfigurationKey<float> QUATERNION_SPEED_MULT = new ModConfigurationKey<float>("Quaternion Speed Multiplier", "Multiplier applied to Base Scroll Speed when editing quaternions.", () => 10f);
+		private static ModConfigurationKey<float> SPEED_MULT_QUATERNION = new ModConfigurationKey<float>("Quaternion Speed Multiplier", "Multiplier applied to Base Scroll Speed when editing quaternions.", () => 10f);
 		[AutoRegisterConfigKey]
-		private static ModConfigurationKey<float> INTEGER_SPEED_MULT = new ModConfigurationKey<float>("Integer Speed Multiplier", "Multiplier applied to Base Scroll Speed when editing integers.", () => 0.75f);
+		private static ModConfigurationKey<float> SPEED_MULT_INTEGER = new ModConfigurationKey<float>("Integer Speed Multiplier", "Multiplier applied to Base Scroll Speed when editing integers.", () => 0.75f);
+		[AutoRegisterConfigKey]
+		private static ModConfigurationKey<bool> DEBUG_LOGGING = new ModConfigurationKey<bool>("Enable Debug Logging", "Enables debug logging (Warning: very spammy when value scrolling!)", () => false);
 
 		private static MethodInfo _addMethod = AccessTools.Method(typeof(ScrollableFieldEditors), nameof(Add));
 		private static MethodInfo _subMethod = AccessTools.Method(typeof(ScrollableFieldEditors), nameof(Sub));
 		private static MethodInfo _primitiveToStringMethod = AccessTools.Method(typeof(PrimitiveMemberEditor), "PrimitiveToString");
 		private static MethodInfo _getEulerValueMethod = AccessTools.Method(typeof(QuaternionMemberEditor), "GetEulerValue");
+
+		private static Dictionary<Type, MethodInfo> _typedAddMethodCache = new();
+		private static Dictionary<Type, MethodInfo> _typedSubMethodCache = new();
 
 		private static MemberEditor _currentMemberEditor;
 		private static bool _blockScroll = false;
@@ -50,6 +57,14 @@ namespace ScrollableFieldEditors
 			Config = GetConfiguration();
 			Harmony harmony = new Harmony("owo.Nytra.ScrollableFieldEditors");
 			harmony.PatchAll();
+		}
+
+		private static void ExtraDebug(string str)
+		{
+			if (Config.GetValue(DEBUG_LOGGING))
+			{
+				Debug(str);
+			}
 		}
 
 		private static T Add<T>(T val, T addVal)
@@ -165,6 +180,28 @@ namespace ScrollableFieldEditors
 			return currentVal;
 		}
 
+		private static MethodInfo GetTypedAddMethod(Type type)
+		{
+			if (_typedAddMethodCache.ContainsKey(type))
+			{
+				return _typedAddMethodCache[type];
+			}
+			var method = _addMethod.MakeGenericMethod(type);
+			_typedAddMethodCache.Add(type, method);
+			return method;
+		}
+
+		private static MethodInfo GetTypedSubMethod(Type type)
+		{
+			if (_typedSubMethodCache.ContainsKey(type))
+			{
+				return _typedSubMethodCache[type];
+			}
+			var method = _subMethod.MakeGenericMethod(type);
+			_typedSubMethodCache.Add(type, method);
+			return method;
+		}
+
 		[HarmonyPatch(typeof(PrimitiveMemberEditor))]
 		[HarmonyPatch("EditingStarted")]
 		class PrimitiveMemberEditor_EditingStarted_Patch1
@@ -233,7 +270,7 @@ namespace ScrollableFieldEditors
 			{
 				if (Config.GetValue(MOD_ENABLED))
 				{
-					Debug($"Touch source event from: {eventData.source.Name} {eventData.source.ReferenceID}");
+					ExtraDebug($"Touch source event from: {eventData.source.Name} {eventData.source.ReferenceID}");
 					var activeFocus = __instance.LocalUser.GetActiveFocus();
 					if (activeFocus != null)
 					{
@@ -313,7 +350,7 @@ namespace ScrollableFieldEditors
 
 							if (!correctSide)
 							{
-								Debug("Interaction laser is not the correct side");
+								ExtraDebug("Interaction laser is not the correct side");
 								return;
 							}
 
@@ -324,13 +361,13 @@ namespace ScrollableFieldEditors
 								__instance.Inputs.Axis.RegisterBlocks = true;
 							}
 
-							Debug("Member type: " + memberType.Name);
+							ExtraDebug("Member type: " + memberType.Name);
 
-							Debug("scroll Y axis: " + yAxis.ToString());
+							ExtraDebug("scroll Y axis: " + yAxis.ToString());
 
 							object currentVal = GetCurrentMemberValue();
 
-							Debug("current val: " + currentVal.ToString());
+							ExtraDebug("current val: " + currentVal.ToString());
 
 							float amountToAdd = 0;
 							if (__instance.InputInterface.ScreenActive)
@@ -344,7 +381,7 @@ namespace ScrollableFieldEditors
 
 							if (memberType.IsInteger())
 							{
-								amountToAdd *= Config.GetValue(INTEGER_SPEED_MULT);
+								amountToAdd *= Config.GetValue(SPEED_MULT_INTEGER);
 								if (amountToAdd > 0)
 								{
 									amountToAdd = MathX.Ceil(amountToAdd);
@@ -356,21 +393,21 @@ namespace ScrollableFieldEditors
 							}
 							else if (memberType == typeof(floatQ) ||  memberType == typeof(doubleQ))
 							{
-								amountToAdd *= Config.GetValue(QUATERNION_SPEED_MULT);	
+								amountToAdd *= Config.GetValue(SPEED_MULT_QUATERNION);	
 							}
 
-							Debug("amount to add: " + amountToAdd.ToString());
+							ExtraDebug("amount to add: " + amountToAdd.ToString());
 
 							object newVal = null;
 							if (_currentMemberEditor is PrimitiveMemberEditor)
 							{
 								if (amountToAdd < 0)
 								{
-									newVal = _subMethod.MakeGenericMethod(memberType).Invoke(null, [currentVal, Convert.ChangeType(Math.Abs(amountToAdd), memberType)]);
+									newVal = GetTypedSubMethod(memberType).Invoke(null, [currentVal, Convert.ChangeType(Math.Abs(amountToAdd), memberType)]);
 								}
 								else
 								{
-									newVal = _addMethod.MakeGenericMethod(memberType).Invoke(null, [currentVal, Convert.ChangeType(amountToAdd, memberType)]);
+									newVal = GetTypedAddMethod(memberType).Invoke(null, [currentVal, Convert.ChangeType(amountToAdd, memberType)]);
 								}
 								_currentMemberEditor.SetMemberValue(newVal);
 							}
@@ -427,7 +464,7 @@ namespace ScrollableFieldEditors
 
 							if (newVal != null)
 							{
-								Debug("new val: " + newVal.ToString());
+								ExtraDebug("new val: " + newVal.ToString());
 								UpdateText(text, memberType, newVal);
 							}
 						}
