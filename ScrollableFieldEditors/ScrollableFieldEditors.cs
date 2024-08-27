@@ -5,7 +5,6 @@ using System.Reflection;
 using Elements.Core;
 using System;
 using FrooxEngine.UIX;
-using FrooxEngine.ProtoFlux.CoreNodes;
 using System.Globalization;
 
 namespace ScrollableFieldEditors
@@ -20,11 +19,18 @@ namespace ScrollableFieldEditors
 		public static ModConfiguration Config;
 
 		[AutoRegisterConfigKey]
-		private static ModConfigurationKey<bool> MOD_ENABLED = new ModConfigurationKey<bool>("MOD_ENABLED", "Mod Enabled:", () => true);
+		private static ModConfigurationKey<bool> MOD_ENABLED = new ModConfigurationKey<bool>("Mod Enabled", "Should the effects of the mod be enabled.", () => true);
 		[AutoRegisterConfigKey]
-		private static ModConfigurationKey<float> SCROLL_SPEED = new ModConfigurationKey<float>("Scroll Speed", "Speed of scrolling values.", () => 1f);
+		private static ModConfigurationKey<float> SCROLL_SPEED_VR = new ModConfigurationKey<float>("VR Scroll Speed", "Speed of scrolling values in VR.", () => 0.1f);
+		[AutoRegisterConfigKey]
+		private static ModConfigurationKey<float> SCROLL_SPEED_DESKTOP = new ModConfigurationKey<float>("Desktop Scroll Speed", "Speed of scrolling values in desktop.", () => 1f);
+		[AutoRegisterConfigKey]
+		private static ModConfigurationKey<float> QUATERNION_SPEED_MULT = new ModConfigurationKey<float>("Quaternion Speed Multiplier", "Multiplier applied to Base Scroll Speed when editing quaternions.", () => 10f);
+		[AutoRegisterConfigKey]
+		private static ModConfigurationKey<float> INTEGER_SPEED_MULT = new ModConfigurationKey<float>("Integer Speed Multiplier", "Multiplier applied to Base Scroll Speed when editing integers.", () => 0.75f);
 
 		private static MethodInfo _addMethod = AccessTools.Method(typeof(ScrollableFieldEditors), nameof(Add));
+		private static MethodInfo _subMethod = AccessTools.Method(typeof(ScrollableFieldEditors), nameof(Sub));
 		private static MethodInfo _primitiveToStringMethod = AccessTools.Method(typeof(PrimitiveMemberEditor), "PrimitiveToString");
 		private static MethodInfo _getEulerValueMethod = AccessTools.Method(typeof(QuaternionMemberEditor), "GetEulerValue");
 
@@ -51,6 +57,15 @@ namespace ScrollableFieldEditors
 			if (Coder<T>.SupportsAddSub)
 			{
 				return Coder<T>.Add(val, addVal);
+			}
+			return val;
+		}
+
+		private static T Sub<T>(T val, T subVal)
+		{
+			if (Coder<T>.SupportsAddSub)
+			{
+				return Coder<T>.Sub(val, subVal);
 			}
 			return val;
 		}
@@ -213,7 +228,7 @@ namespace ScrollableFieldEditors
 		[HarmonyPatch("OnPressBegin")]
 		class Button_OnPressBegin_Patch
 		{
-			// Store the touch source when a button is pressed
+			// Store the touch source when a button connected to an IFocusable is pressed
 			public static void Postfix(Button __instance, Canvas.InteractionData eventData)
 			{
 				if (Config.GetValue(MOD_ENABLED))
@@ -277,23 +292,23 @@ namespace ScrollableFieldEditors
 								return;
 							}
 
+							_blockScroll = true;
+
 							bool correctSide = false;
-							if (!__instance.InputInterface.ScreenActive)
+							if (_lastTouchSource is RelayTouchSource relayTouchSource)
 							{
-								if (_lastTouchSource is RelayTouchSource relayTouchSource)
+								if (relayTouchSource.Slot.GetComponent<InteractionLaser>() is InteractionLaser interactionLaser)
 								{
-									if (relayTouchSource.Slot.GetComponent<InteractionLaser>() is InteractionLaser interactionLaser)
+									if (__instance.Laser == interactionLaser)
 									{
-										if (__instance.Laser == interactionLaser)
-										{
-											correctSide = true;
-										}
+										correctSide = true;
 									}
 								}
-							}
-							else
-							{
-								correctSide = true;
+								// Only update for one interaction handler if using pointer interaction controller
+								else if (relayTouchSource.Slot.GetComponent<PointerInteractionController>() is not null && __instance.Side.Value == Chirality.Right)
+								{
+									correctSide = true;
+								}
 							}
 
 							if (!correctSide)
@@ -301,8 +316,6 @@ namespace ScrollableFieldEditors
 								Debug("Interaction laser is not the correct side");
 								return;
 							}
-
-							_blockScroll = true;
 
 							// block thumbstick move/rotate while value scrolling on non-Index controllers
 							if (__instance.InputInterface.GetControllerNode(__instance.Side).GetType() != typeof(IndexController) && !__instance.InputInterface.ScreenActive)
@@ -319,10 +332,19 @@ namespace ScrollableFieldEditors
 
 							Debug("current val: " + currentVal.ToString());
 
-							var amountToAdd = yAxis * Config.GetValue(SCROLL_SPEED);
+							float amountToAdd = 0;
+							if (__instance.InputInterface.ScreenActive)
+							{
+								amountToAdd = yAxis * Config.GetValue(SCROLL_SPEED_DESKTOP);
+							}
+							else
+							{
+								amountToAdd = yAxis * Config.GetValue(SCROLL_SPEED_VR);
+							}
 
 							if (memberType.IsInteger())
 							{
+								amountToAdd *= Config.GetValue(INTEGER_SPEED_MULT);
 								if (amountToAdd > 0)
 								{
 									amountToAdd = MathX.Ceil(amountToAdd);
@@ -332,13 +354,24 @@ namespace ScrollableFieldEditors
 									amountToAdd = MathX.Floor(amountToAdd);
 								}
 							}
+							else if (memberType == typeof(floatQ) ||  memberType == typeof(doubleQ))
+							{
+								amountToAdd *= Config.GetValue(QUATERNION_SPEED_MULT);	
+							}
 
 							Debug("amount to add: " + amountToAdd.ToString());
 
 							object newVal = null;
 							if (_currentMemberEditor is PrimitiveMemberEditor)
 							{
-								newVal = _addMethod.MakeGenericMethod(memberType).Invoke(null, [currentVal, Convert.ChangeType(amountToAdd, memberType)]);
+								if (amountToAdd < 0)
+								{
+									newVal = _subMethod.MakeGenericMethod(memberType).Invoke(null, [currentVal, Convert.ChangeType(Math.Abs(amountToAdd), memberType)]);
+								}
+								else
+								{
+									newVal = _addMethod.MakeGenericMethod(memberType).Invoke(null, [currentVal, Convert.ChangeType(amountToAdd, memberType)]);
+								}
 								_currentMemberEditor.SetMemberValue(newVal);
 							}
 							else if (_currentMemberEditor is QuaternionMemberEditor)
