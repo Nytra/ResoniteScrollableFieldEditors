@@ -29,6 +29,8 @@ namespace ScrollableFieldEditors
 		private static MethodInfo _getEulerValueMethod = AccessTools.Method(typeof(QuaternionMemberEditor), "GetEulerValue");
 
 		private static MemberEditor _currentMemberEditor;
+		private static bool _blockScroll = false;
+		private static TouchSource _lastTouchSource = null;
 
 		private enum QuaternionField
 		{
@@ -51,46 +53,6 @@ namespace ScrollableFieldEditors
 				return Coder<T>.Add(val, addVal);
 			}
 			return val;
-		}
-
-		[HarmonyPatch(typeof(PrimitiveMemberEditor))]
-		[HarmonyPatch("EditingStarted")]
-		class PrimitiveMemberEditor_EditingStarted_Patch1
-		{
-			public static void Postfix(PrimitiveMemberEditor __instance)
-			{
-				_currentMemberEditor = __instance;
-			}
-		}
-
-		[HarmonyPatch(typeof(PrimitiveMemberEditor))]
-		[HarmonyPatch("EditingFinished")]
-		class PrimitiveMemberEditor_EditingFinished_Patch
-		{
-			public static void Postfix(PrimitiveMemberEditor __instance)
-			{
-				_currentMemberEditor = null;
-			}
-		}
-
-		[HarmonyPatch(typeof(QuaternionMemberEditor))]
-		[HarmonyPatch("EditingStarted")]
-		class QuaternionMemberEditor_EditingStarted_Patch
-		{
-			public static void Postfix(QuaternionMemberEditor __instance)
-			{
-				_currentMemberEditor = __instance;
-			}
-		}
-
-		[HarmonyPatch(typeof(QuaternionMemberEditor))]
-		[HarmonyPatch("EditingFinished")]
-		class QuaternionMemberEditor_EditingFinished_Patch
-		{
-			public static void Postfix(QuaternionMemberEditor __instance)
-			{
-				_currentMemberEditor = null;
-			}
 		}
 
 		private static QuaternionField? GetEditingField()
@@ -168,14 +130,132 @@ namespace ScrollableFieldEditors
 			}
 		}
 
+		private static object GetCurrentMemberValue()
+		{
+			object currentVal;
+			if (_currentMemberEditor is PrimitiveMemberEditor)
+			{
+				currentVal = _currentMemberEditor.GetMemberValue();
+			}
+			else if (_currentMemberEditor is QuaternionMemberEditor)
+			{
+				var eulerValue = GetEulerValue();
+				currentVal = doubleQ.Euler(eulerValue.x, eulerValue.y, eulerValue.z);
+			}
+			else
+			{
+				// it should never get here because no other member editors use text editors
+				return null;
+			}
+			return currentVal;
+		}
+
+		[HarmonyPatch(typeof(PrimitiveMemberEditor))]
+		[HarmonyPatch("EditingStarted")]
+		class PrimitiveMemberEditor_EditingStarted_Patch1
+		{
+			public static void Postfix(PrimitiveMemberEditor __instance)
+			{
+				_currentMemberEditor = __instance;
+			}
+		}
+
+		[HarmonyPatch(typeof(PrimitiveMemberEditor))]
+		[HarmonyPatch("EditingFinished")]
+		class PrimitiveMemberEditor_EditingFinished_Patch
+		{
+			public static void Postfix(PrimitiveMemberEditor __instance)
+			{
+				_currentMemberEditor = null;
+			}
+		}
+
+		[HarmonyPatch(typeof(QuaternionMemberEditor))]
+		[HarmonyPatch("EditingStarted")]
+		class QuaternionMemberEditor_EditingStarted_Patch
+		{
+			public static void Postfix(QuaternionMemberEditor __instance)
+			{
+				_currentMemberEditor = __instance;
+			}
+		}
+
+		[HarmonyPatch(typeof(QuaternionMemberEditor))]
+		[HarmonyPatch("EditingFinished")]
+		class QuaternionMemberEditor_EditingFinished_Patch
+		{
+			public static void Postfix(QuaternionMemberEditor __instance)
+			{
+				_currentMemberEditor = null;
+			}
+		}
+
+		[HarmonyPatch(typeof(PointerInteractionController))]
+		[HarmonyPatch("UpdatePointer")]
+		class PointerInteractionController_UpdatePointer_Patch
+		{
+			// blocks desktop mode scrolling UIX in userspace
+			public static bool Prefix(PointerInteractionController __instance, FrooxEngine.Pointer pointer, ref float2 axisDelta)
+			{
+				if (Config.GetValue(MOD_ENABLED))
+				{
+					if (_currentMemberEditor.FilterWorldElement() != null && _currentMemberEditor.World.IsUserspace() && __instance.LocalUser.GetActiveFocus() != null)
+					{
+						axisDelta = float2.Zero;
+					}
+				}
+
+				return true;
+			}
+		}
+
+		[HarmonyPatch(typeof(Button))]
+		[HarmonyPatch("OnPressBegin")]
+		class Button_OnPressBegin_Patch
+		{
+			// Store the touch source when a button is pressed
+			public static void Postfix(Button __instance, Canvas.InteractionData eventData)
+			{
+				if (Config.GetValue(MOD_ENABLED))
+				{
+					Debug($"Touch source event from: {eventData.source.Name} {eventData.source.ReferenceID}");
+					var activeFocus = __instance.LocalUser.GetActiveFocus();
+					if (activeFocus != null)
+					{
+						_lastTouchSource = eventData.source;
+					}
+				}
+			}
+		}
+
 		[HarmonyPatch(typeof(InteractionHandler))]
 		[HarmonyPatch("OnInputUpdate")]
 		class InteractionHandler_OnInputUpdate_Patch
+		{
+			public static bool Prefix(InteractionHandler __instance)
+			{
+				if (Config.GetValue(MOD_ENABLED))
+				{
+					if (_blockScroll)
+					{
+						// blocks desktop mode scrolling UIX in worldspace
+						__instance.Inputs.TouchAxis.Value.ValueRef.Value = float2.Zero;
+					}
+				}
+				return true;
+			}
+		}
+
+		[HarmonyPatch(typeof(InteractionHandler))]
+		[HarmonyPatch("BeforeInputUpdate")]
+		[HarmonyAfter("owo.Nytra.NoTankControls", "U-xyla.XyMod")]
+		class InteractionHandler_BeforeInputUpdate_Patch
 		{
 			public static void Postfix(InteractionHandler __instance)
 			{
 				if (Config.GetValue(MOD_ENABLED))
 				{
+					_blockScroll = false;
 					var activeFocus = __instance.LocalUser.GetActiveFocus();
 					if (activeFocus is TextEditor textEditor && textEditor.Text.Target is Text text && _currentMemberEditor.FilterWorldElement() != null && _currentMemberEditor.World == __instance.World)
 					{
@@ -191,31 +271,51 @@ namespace ScrollableFieldEditors
 							{
 								yAxis = __instance.Inputs.Axis.Value.Value.y;
 							}
-							
+
 							if (MathX.Approximately(yAxis, 0))
 							{
 								return;
+							}
+
+							bool correctSide = false;
+							if (!__instance.InputInterface.ScreenActive)
+							{
+								if (_lastTouchSource is RelayTouchSource relayTouchSource)
+								{
+									if (relayTouchSource.Slot.GetComponent<InteractionLaser>() is InteractionLaser interactionLaser)
+									{
+										if (__instance.Laser == interactionLaser)
+										{
+											correctSide = true;
+										}
+									}
+								}
+							}
+							else
+							{
+								correctSide = true;
+							}
+
+							if (!correctSide)
+							{
+								Debug("Interaction laser is not the correct side");
+								return;
+							}
+
+							_blockScroll = true;
+
+							// block thumbstick move/rotate while value scrolling on non-Index controllers
+							if (__instance.InputInterface.GetControllerNode(__instance.Side).GetType() != typeof(IndexController) && !__instance.InputInterface.ScreenActive)
+							{
+								// sorry NoTankControls...
+								__instance.Inputs.Axis.RegisterBlocks = true;
 							}
 
 							Debug("Member type: " + memberType.Name);
 
 							Debug("scroll Y axis: " + yAxis.ToString());
 
-							object currentVal;
-							if (_currentMemberEditor is PrimitiveMemberEditor)
-							{
-								currentVal = _currentMemberEditor.GetMemberValue();
-							}
-							else if (_currentMemberEditor is QuaternionMemberEditor)
-							{
-								var eulerValue = GetEulerValue();
-								currentVal = doubleQ.Euler(eulerValue.x, eulerValue.y, eulerValue.z);
-							}
-							else
-							{
-								// it should never get here because no other member editors use text editors
-								return;
-							}
+							object currentVal = GetCurrentMemberValue();
 
 							Debug("current val: " + currentVal.ToString());
 
