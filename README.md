@@ -7,7 +7,9 @@ Works in desktop mode and VR.
 Compatible with NoTankControls.
 
 Shift key: Change values faster (default: double speed)
+
 Control key: Change values slower (default: half speed)
+
 Alt key: Snap to multiples of a chosen value (default: 1)
 
 ## Installation
