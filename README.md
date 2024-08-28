@@ -4,8 +4,6 @@ A [ResoniteModLoader](https://github.com/resonite-modding-group/ResoniteModLoade
 
 Works in desktop mode and VR.
 
-Compatible with NoTankControls.
-
 Shift key: Change values faster (default: double speed)
 
 Control key: Change values slower (default: half speed)
