@@ -22,7 +22,7 @@ namespace ScrollableFieldEditors
 		[AutoRegisterConfigKey]
 		private static ModConfigurationKey<bool> MOD_ENABLED = new ModConfigurationKey<bool>("Mod Enabled", "Should the effects of the mod be enabled.", () => true);
 		[AutoRegisterConfigKey]
-		private static ModConfigurationKey<float> SCROLL_SPEED_VR = new ModConfigurationKey<float>("VR Scroll Speed", "Speed of scrolling values in VR.", () => 0.1f);
+		private static ModConfigurationKey<float> SCROLL_SPEED_VR = new ModConfigurationKey<float>("VR Scroll Speed", "Speed of scrolling values in VR.", () => 0.05f);
 		[AutoRegisterConfigKey]
 		private static ModConfigurationKey<float> SCROLL_SPEED_DESKTOP = new ModConfigurationKey<float>("Desktop Scroll Speed", "Speed of scrolling values in desktop.", () => 1f);
 		[AutoRegisterConfigKey]
@@ -30,11 +30,11 @@ namespace ScrollableFieldEditors
 		[AutoRegisterConfigKey]
 		private static ModConfigurationKey<float> SPEED_MULT_INTEGER = new ModConfigurationKey<float>("Integer Speed Multiplier", "Multiplier applied to Base Scroll Speed when editing integers.", () => 0.75f);
 		[AutoRegisterConfigKey]
-		private static ModConfigurationKey<float> SNAP_INCREMENT = new ModConfigurationKey<float>("[Alt Key] Snap Increment", "Snap to the nearest multiple of this amount when holding the Alt key.", () => 10f);
+		private static ModConfigurationKey<float> SNAP_INCREMENT = new ModConfigurationKey<float>("[Alt Key] Snap Increment", "Snap to the nearest multiple of this amount when holding the Alt key.", () => 1f);
 		[AutoRegisterConfigKey]
-		private static ModConfigurationKey<float> FAST_MULTIPLIER = new ModConfigurationKey<float>("[Shift Key] Speed Multiplier", "Multiplies the speed by this amount when holding the Shift key.", () => 5f);
+		private static ModConfigurationKey<float> FAST_MULTIPLIER = new ModConfigurationKey<float>("[Shift Key] Speed Multiplier", "Multiplies the speed by this amount when holding the Shift key.", () => 2f);
 		[AutoRegisterConfigKey]
-		private static ModConfigurationKey<float> SLOW_DIVISOR = new ModConfigurationKey<float>("[Control Key] Speed Divisor", "Divides the speed by this amount when holding the Control key.", () => 5f);
+		private static ModConfigurationKey<float> SLOW_DIVISOR = new ModConfigurationKey<float>("[Control Key] Speed Divisor", "Divides the speed by this amount when holding the Control key.", () => 2f);
 		[AutoRegisterConfigKey]
 		private static ModConfigurationKey<bool> DEBUG_LOGGING = new ModConfigurationKey<bool>("Enable Debug Logging", "Enables debug logging (Warning: very spammy when value scrolling!)", () => false);
 
@@ -116,7 +116,7 @@ namespace ScrollableFieldEditors
 			return null;
 		}
 
-		private static double3 GetEulerValue()
+		private static double3 GetCurrentQuaternionValueEuler()
 		{
 			double3? eulerValue = null;
 
@@ -139,7 +139,7 @@ namespace ScrollableFieldEditors
 			}
 			else if (_currentMemberEditor is QuaternionMemberEditor)
 			{
-				double3 eulerValue = GetEulerValue();
+				double3 eulerValue = GetCurrentQuaternionValueEuler();
 
 				double? val = null;
 				switch (GetEditingField())
@@ -163,26 +163,6 @@ namespace ScrollableFieldEditors
 			{
 				text.Content.Value = newString;
 			}
-		}
-
-		private static object GetCurrentMemberValue()
-		{
-			object currentVal;
-			if (_currentMemberEditor is PrimitiveMemberEditor)
-			{
-				currentVal = _currentMemberEditor.GetMemberValue();
-			}
-			else if (_currentMemberEditor is QuaternionMemberEditor)
-			{
-				var eulerValue = GetEulerValue();
-				currentVal = doubleQ.Euler(eulerValue.x, eulerValue.y, eulerValue.z);
-			}
-			else
-			{
-				// it should never get here because no other member editors use text editors
-				return null;
-			}
-			return currentVal;
 		}
 
 		private static MethodInfo GetTypedAddMethod(Type type)
@@ -293,7 +273,7 @@ namespace ScrollableFieldEditors
 			{
 				if (Config.GetValue(MOD_ENABLED))
 				{
-					if (_blockScroll)
+					if (__instance.World == _currentMemberEditor?.World && __instance.World == Engine.Current?.WorldManager?.FocusedWorld && _blockScroll)
 					{
 						// blocks desktop mode scrolling UIX in worldspace
 						__instance.Inputs.TouchAxis.Value.ValueRef.Value = float2.Zero;
@@ -314,7 +294,8 @@ namespace ScrollableFieldEditors
 				{
 					_blockScroll = false;
 					var activeFocus = __instance.LocalUser.GetActiveFocus();
-					if (activeFocus is TextEditor textEditor && textEditor.Text.Target is Text text && _currentMemberEditor.FilterWorldElement() != null && _currentMemberEditor.World == __instance.World)
+					var isFocusedWorldOrUserspace = __instance.World == Engine.Current?.WorldManager?.FocusedWorld || __instance.World.IsUserspace();
+					if (activeFocus is TextEditor textEditor && textEditor.Text.Target is Text text && _currentMemberEditor.FilterWorldElement() != null && _currentMemberEditor.World == __instance.World && isFocusedWorldOrUserspace)
 					{
 						var memberType = _currentMemberEditor.Accessor?.TargetType;
 						if (memberType != null && memberType.IsEnginePrimitive())
@@ -370,7 +351,7 @@ namespace ScrollableFieldEditors
 
 							ExtraDebug("scroll Y axis: " + yAxis.ToString());
 
-							object currentVal = GetCurrentMemberValue();
+							object currentVal = _currentMemberEditor.GetMemberValue();
 
 							ExtraDebug("current val: " + currentVal.ToString());
 
@@ -406,7 +387,7 @@ namespace ScrollableFieldEditors
 								float floatCurrentVal = 0;
 								if (memberType == typeof(floatQ) || memberType == typeof(doubleQ))
 								{
-									var eulerValue = GetEulerValue();
+									var eulerValue = GetCurrentQuaternionValueEuler();
 
 									switch (GetEditingField())
 									{
@@ -476,7 +457,7 @@ namespace ScrollableFieldEditors
 							}
 							else if (_currentMemberEditor is QuaternionMemberEditor)
 							{
-								var eulerValue = GetEulerValue();
+								var eulerValue = GetCurrentQuaternionValueEuler();
 								double x = eulerValue.x;
 								double y = eulerValue.y;
 								double z = eulerValue.z;
