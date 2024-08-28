@@ -7,7 +7,6 @@ using System;
 using FrooxEngine.UIX;
 using System.Globalization;
 using System.Collections.Generic;
-using static Elements.Core.Number;
 
 namespace ScrollableFieldEditors
 {
@@ -30,6 +29,12 @@ namespace ScrollableFieldEditors
 		private static ModConfigurationKey<float> SPEED_MULT_QUATERNION = new ModConfigurationKey<float>("Quaternion Speed Multiplier", "Multiplier applied to Base Scroll Speed when editing quaternions.", () => 10f);
 		[AutoRegisterConfigKey]
 		private static ModConfigurationKey<float> SPEED_MULT_INTEGER = new ModConfigurationKey<float>("Integer Speed Multiplier", "Multiplier applied to Base Scroll Speed when editing integers.", () => 0.75f);
+		[AutoRegisterConfigKey]
+		private static ModConfigurationKey<float> SNAP_INCREMENT = new ModConfigurationKey<float>("[Alt Key] Snap Increment", "Snap to the nearest multiple of this amount when holding the Alt key.", () => 10f);
+		[AutoRegisterConfigKey]
+		private static ModConfigurationKey<float> FAST_MULTIPLIER = new ModConfigurationKey<float>("[Shift Key] Speed Multiplier", "Multiplies the speed by this amount when holding the Shift key.", () => 5f);
+		[AutoRegisterConfigKey]
+		private static ModConfigurationKey<float> SLOW_DIVISOR = new ModConfigurationKey<float>("[Control Key] Speed Divisor", "Divides the speed by this amount when holding the Control key.", () => 5f);
 		[AutoRegisterConfigKey]
 		private static ModConfigurationKey<bool> DEBUG_LOGGING = new ModConfigurationKey<bool>("Enable Debug Logging", "Enables debug logging (Warning: very spammy when value scrolling!)", () => false);
 
@@ -270,7 +275,7 @@ namespace ScrollableFieldEditors
 			{
 				if (Config.GetValue(MOD_ENABLED))
 				{
-					ExtraDebug($"Touch source event from: {eventData.source.Name} {eventData.source.ReferenceID}");
+					ExtraDebug($"Button pressed from source: {eventData.source.Name} {eventData.source.ReferenceID}");
 					var activeFocus = __instance.LocalUser.GetActiveFocus();
 					if (activeFocus != null)
 					{
@@ -393,7 +398,65 @@ namespace ScrollableFieldEditors
 							}
 							else if (memberType == typeof(floatQ) ||  memberType == typeof(doubleQ))
 							{
-								amountToAdd *= Config.GetValue(SPEED_MULT_QUATERNION);	
+								amountToAdd *= Config.GetValue(SPEED_MULT_QUATERNION);
+							}
+
+							if (__instance.InputInterface.GetKey(Key.Alt) || __instance.InputInterface.GetKey(Key.LeftAlt))
+							{
+								float floatCurrentVal = 0;
+								if (memberType == typeof(floatQ) || memberType == typeof(doubleQ))
+								{
+									var eulerValue = GetEulerValue();
+
+									switch (GetEditingField())
+									{
+										case QuaternionField.X:
+											floatCurrentVal = (float)eulerValue.x;
+											break;
+										case QuaternionField.Y:
+											floatCurrentVal = (float)eulerValue.y;
+											break;
+										case QuaternionField.Z:
+											floatCurrentVal = (float)eulerValue.z;
+											break;
+										default:
+											break;
+									}
+								}
+								else
+								{
+									floatCurrentVal = Convert.ToSingle(currentVal);
+								}
+								float snapVal = Config.GetValue(SNAP_INCREMENT);
+								if (__instance.InputInterface.GetKey(Key.Shift) || __instance.InputInterface.GetKey(Key.LeftShift))
+								{
+									snapVal *= Config.GetValue(FAST_MULTIPLIER);
+								}
+								else if (__instance.InputInterface.GetKey(Key.Control) || __instance.InputInterface.GetKey(Key.LeftControl))
+								{
+									snapVal /= Config.GetValue(SLOW_DIVISOR);
+								}
+								var fraction = floatCurrentVal / snapVal;
+								if (floatCurrentVal % snapVal != 0)
+								{
+									var wholeNum = yAxis > 0 ? Math.Ceiling(fraction) : Math.Floor(fraction);
+									amountToAdd = ((float)wholeNum * snapVal) - floatCurrentVal;
+								}
+								else
+								{
+									amountToAdd = ((float)Math.Round(fraction, 0, MidpointRounding.AwayFromZero) * snapVal) - floatCurrentVal + (snapVal * Math.Sign(yAxis));
+								}
+							}
+							else
+							{
+								if (__instance.InputInterface.GetKey(Key.Shift) || __instance.InputInterface.GetKey(Key.LeftShift))
+								{
+									amountToAdd *= Config.GetValue(FAST_MULTIPLIER);
+								}
+								else if (__instance.InputInterface.GetKey(Key.Control) || __instance.InputInterface.GetKey(Key.LeftControl))
+								{
+									amountToAdd /= Config.GetValue(SLOW_DIVISOR);
+								}
 							}
 
 							ExtraDebug("amount to add: " + amountToAdd.ToString());
