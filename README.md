@@ -1,6 +1,6 @@
 # ScrollableFieldEditors
 
-A [ResoniteModLoader](https://github.com/resonite-modding-group/ResoniteModLoader) mod for [Resonite](https://resonite.com/) that allows clicking into value fields and then scrolling to increase or decrease the value by a configurable speed.
+A [ResoniteModLoader](https://github.com/resonite-modding-group/ResoniteModLoader) mod for [Resonite](https://resonite.com/) that allows clicking into inspector fields and then scrolling to increase or decrease the value by a configurable speed.
 
 Works in desktop mode and VR.
 
