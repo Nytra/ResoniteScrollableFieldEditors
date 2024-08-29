@@ -4,6 +4,8 @@ A [ResoniteModLoader](https://github.com/resonite-modding-group/ResoniteModLoade
 
 Works in desktop mode and VR.
 
+Desktop bindings (activated by holding the key):
+
 Shift key: Change values faster (default: double speed)
 
 Control key: Change values slower (default: half speed)
