@@ -1,67 +1,44 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
-<Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
-  <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
+﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
-    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
+    <TargetFramework>net9.0</TargetFramework>
     <OutputType>Library</OutputType>
-    <AppDesignerFolder>Properties</AppDesignerFolder>
-    <RootNamespace>ScrollableFieldEditors</RootNamespace>
-    <AssemblyName>ScrollableFieldEditors</AssemblyName>
-    <TargetFrameworkVersion>v4.7.2</TargetFrameworkVersion>
-	<LangVersion>12.0</LangVersion>
-    <FileAlignment>512</FileAlignment>
-    <Deterministic>true</Deterministic>
-    <TargetFrameworkProfile />
-    <ProjectGuid>{0322B2EF-7452-479D-BAE2-FCAB75033337}</ProjectGuid>
+    <LangVersion>13.0</LangVersion>
+    <AssemblyTitle>ScrollableFieldEditors</AssemblyTitle>
+    <Company>Nytra</Company>
+    <Product>ScrollableFieldEditors</Product>
+    <Copyright>Copyright © Nytra 2025</Copyright>
+    <AssemblyVersion>1.0.1</AssemblyVersion>
+    <FileVersion>1.0.1</FileVersion>
   </PropertyGroup>
   <PropertyGroup Condition="'$(ResonitePath)'==''">
-		<ResonitePath>$(MSBuildThisFileDirectory)Resonite/</ResonitePath>
-		<ResonitePath Condition="Exists('C:\Program Files (x86)\Steam\steamapps\common\Resonite\')">C:\Program Files (x86)\Steam\steamapps\common\Resonite\</ResonitePath>
-		<ResonitePath Condition="Exists('$(HOME)/.steam/steam/steamapps/common/Resonite/')">$(HOME)/.steam/steam/steamapps/common/Resonite/</ResonitePath>
-		<ResonitePath Condition="Exists('R:\SteamLibrary\steamapps\common\Resonite\')">R:\SteamLibrary\steamapps\common\Resonite\</ResonitePath>
-		<ResonitePath Condition="Exists('G:\SteamLibrary\steamapps\common\Resonite\')">G:\SteamLibrary\steamapps\common\Resonite\</ResonitePath>
-  </PropertyGroup>
-  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
-    <DebugSymbols>true</DebugSymbols>
-    <DebugType>full</DebugType>
-    <Optimize>false</Optimize>
-    <OutputPath>bin\Debug\</OutputPath>
-    <DefineConstants>DEBUG;TRACE</DefineConstants>
-    <ErrorReport>prompt</ErrorReport>
-    <WarningLevel>4</WarningLevel>
-  </PropertyGroup>
-  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
-    <DebugType>pdbonly</DebugType>
-    <Optimize>true</Optimize>
-    <OutputPath>bin\Release\</OutputPath>
-    <DefineConstants>TRACE</DefineConstants>
-    <ErrorReport>prompt</ErrorReport>
-    <WarningLevel>4</WarningLevel>
+    <ResonitePath>$(MSBuildThisFileDirectory)Resonite/</ResonitePath>
+    <ResonitePath Condition="Exists('C:\Program Files (x86)\Steam\steamapps\common\Resonite\')">C:\Program Files (x86)\Steam\steamapps\common\Resonite\</ResonitePath>
+    <ResonitePath Condition="Exists('$(HOME)/.steam/steam/steamapps/common/Resonite/')">$(HOME)/.steam/steam/steamapps/common/Resonite/</ResonitePath>
+    <ResonitePath Condition="Exists('R:\SteamLibrary\steamapps\common\Resonite\')">R:\SteamLibrary\steamapps\common\Resonite\</ResonitePath>
+    <ResonitePath Condition="Exists('G:\SteamLibrary\steamapps\common\Resonite\')">G:\SteamLibrary\steamapps\common\Resonite\</ResonitePath>
   </PropertyGroup>
   <ItemGroup>
-    <Compile Include="ScrollableFieldEditors.cs" />
-    <Compile Include="Properties\AssemblyInfo.cs" />
-  </ItemGroup>
-  <ItemGroup>
-    <None Include="packages.config" />
-  </ItemGroup>
-  <ItemGroup>
-    <Reference Include="0Harmony">
-      <HintPath>$(ResonitePath)rml_libs\0Harmony.dll</HintPath>
+    <Reference Include="0Harmony-Net9">
+      <HintPath>$(ResonitePath)rml_libs\0Harmony-Net9.dll</HintPath>
     </Reference>
-    <Reference Include="Elements.Core">
-      <HintPath>$(ResonitePath)Resonite_Data\Managed\Elements.Core.dll</HintPath>
+    <Reference Include="Elements.Core, Version=1.0.0.0, Culture=neutral, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>$(ResonitePath)Elements.Core.dll</HintPath>
     </Reference>
-    <Reference Include="FrooxEngine">
-      <HintPath>$(ResonitePath)Resonite_Data\Managed\FrooxEngine.dll</HintPath>
+    <Reference Include="FrooxEngine, Version=2024.8.5.1341, Culture=neutral, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>$(ResonitePath)FrooxEngine.dll</HintPath>
     </Reference>
-    <Reference Include="ResoniteModLoader">
+    <Reference Include="Renderite.Shared">
+      <HintPath>$(ResonitePath)Renderite.Shared.dll</HintPath>
+    </Reference>
+    <Reference Include="ResoniteModLoader, Version=3.0.0.0, Culture=neutral, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
       <HintPath>$(ResonitePath)Libraries\ResoniteModLoader.dll</HintPath>
     </Reference>
   </ItemGroup>
-  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
-  <PropertyGroup>
-    <PostBuildEvent>copy "$(TargetDir)\$(TargetFileName)" "$(ResonitePath)rml_mods\"</PostBuildEvent>
-  </PropertyGroup>
+  <Target Name="PostBuild" AfterTargets="PostBuildEvent">
+    <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(ResonitePath)rml_mods" />
+    <Message Text="Copied $(TargetFileName) to $(ResonitePath)rml_mods" Importance="high" />
+  </Target>
 </Project>

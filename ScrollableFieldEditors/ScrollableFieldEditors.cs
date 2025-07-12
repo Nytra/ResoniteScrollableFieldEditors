@@ -7,6 +7,7 @@ using System;
 using FrooxEngine.UIX;
 using System.Globalization;
 using System.Collections.Generic;
+using Renderite.Shared;
 
 namespace ScrollableFieldEditors
 {
@@ -14,7 +15,7 @@ namespace ScrollableFieldEditors
 	{
 		public override string Name => "ScrollableFieldEditors";
 		public override string Author => "Nytra";
-		public override string Version => "1.0.0";
+		public override string Version => "1.0.1";
 		public override string Link => "https://github.com/Nytra/ResoniteScrollableFieldEditors";
 
 		public static ModConfiguration Config;
